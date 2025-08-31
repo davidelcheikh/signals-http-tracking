@@ -47,6 +47,13 @@ function createBaseAction<TArgs extends unknown[], TResult>(
     let currentSub: Subscription | null = null;
     const runSubject = new Subject<TArgs>();
 
+    let currentHandlers: {
+        loading?: (...args: TArgs) => void;
+        success?: (data: TResult, ...args: TArgs) => void;
+        error?: (err: string, ...args: TArgs) => void;
+        finally?: () => void;
+    } = {};
+
     // Set up debounced stream if debounceMs is provided
     if (options.debounceMs) {
         currentSub = runSubject
@@ -60,13 +67,7 @@ function createBaseAction<TArgs extends unknown[], TResult>(
     }
 
     function executeObservable(...args: TArgs): Observable<never> {
-        const handlers: {
-            loading?: (...args: TArgs) => void;
-            success?: (data: TResult, ...args: TArgs) => void;
-            error?: (err: string, ...args: TArgs) => void;
-            finally?: () => void;
-        } = {};
-
+        const handlers = currentHandlers;
         status.set('loading');
         error.set(null);
 
@@ -89,12 +90,11 @@ function createBaseAction<TArgs extends unknown[], TResult>(
                     subscriber.complete();
                 },
                 error: err => {
-                    const msg = extractErrorMessage(err);
-                    error.set(msg);
+                    error.set(err);
                     status.set('error');
-                    if (options.track !== false) tracker.error(id, msg);
-                    options.onError?.(msg, ...args);
-                    handlers.error?.(msg, ...args);
+                    if (options.track !== false) tracker.error(id, err);
+                    options.onError?.(err, ...args);
+                    handlers.error?.(err, ...args);
                     handlers.finally?.();
                     subscriber.complete();
                 },
@@ -105,53 +105,44 @@ function createBaseAction<TArgs extends unknown[], TResult>(
     }
 
     const run = (...args: TArgs): ActionHandlers<TArgs, TResult> => {
-        const handlers: {
-            loading?: (...args: TArgs) => void;
-            success?: (data: TResult, ...args: TArgs) => void;
-            error?: (err: string, ...args: TArgs) => void;
-            finally?: () => void;
-        } = {};
-
-        if (options.debounceMs) {
-            // Use debounced stream
-            runSubject.next(args);
-        } else {
-            // Execute immediately
-            if (currentSub) currentSub.unsubscribe();
-            currentSub = executeObservable(...args).subscribe();
-        }
-
+        currentHandlers = {};
         const chainableHandlers: ActionHandlers<TArgs, TResult> = {
             onLoading: cb => {
-                handlers.loading = cb;
+                currentHandlers.loading = cb;
                 return chainableHandlers;
             },
             onSuccess: cb => {
-                handlers.success = cb;
+                currentHandlers.success = cb;
                 return chainableHandlers;
             },
             onError: cb => {
-                handlers.error = cb;
+                currentHandlers.error = cb;
                 return chainableHandlers;
             },
             finally: cb => {
-                handlers.finally = cb;
+                currentHandlers.finally = cb;
                 return chainableHandlers;
             },
             continueWith: <TNextResult>(
                 nextActionFn: (data: TResult, ...args: TArgs) => ActionHandlers<any[], TNextResult>
             ): ActionHandlers<TArgs, TNextResult> => {
-                // Override the success handler to chain the next action
-                const originalSuccess = handlers.success;
-                handlers.success = (data: TResult, ...originalArgs: TArgs) => {
+                const originalSuccess = currentHandlers.success;
+                currentHandlers.success = (data: TResult, ...originalArgs: TArgs) => {
                     originalSuccess?.(data, ...originalArgs);
-                    // Execute the next action with the result
                     nextActionFn(data, ...originalArgs);
                 };
-
-                return chainableHandlers as any; // Type assertion for chaining different result types
+                return chainableHandlers as any;
             },
         };
+
+        setTimeout(() => {
+            if (options.debounceMs) {
+                runSubject.next(args);
+            } else {
+                if (currentSub) currentSub.unsubscribe();
+                currentSub = executeObservable(...args).subscribe();
+            }
+        }, 0);
 
         return chainableHandlers;
     };
@@ -159,7 +150,6 @@ function createBaseAction<TArgs extends unknown[], TResult>(
     return { status, error, isLoading, isSuccess, isError, run };
 }
 
-// Single observable
 export function createSignalAction<TArgs extends unknown[], TResult>(
     observableFn: (...args: TArgs) => Observable<TResult>,
     options?: ActionOptions<TArgs, TResult>
@@ -167,21 +157,9 @@ export function createSignalAction<TArgs extends unknown[], TResult>(
     return createBaseAction(observableFn, options);
 }
 
-// Multiple observables - always takes a single object argument
 export function createSignalForkJoinAction<TRequest, TResult extends Record<string, unknown>>(
     observablesFn: (request: TRequest) => Record<keyof TResult, Observable<unknown>>,
     options?: ActionOptions<[TRequest], TResult>
 ): SignalAction<[TRequest], TResult> {
     return createBaseAction((request: TRequest) => forkJoin(observablesFn(request)) as Observable<TResult>, options);
-}
-
-function extractErrorMessage(err: any): string {
-    let errorMsg = '';
-    if (err?.name === 'HttpErrorResponse' && typeof err.error === 'string') {
-        errorMsg = err.error;
-    } else if (err?.name === 'HttpErrorResponse' && typeof err?.error?.error === 'string') {
-        errorMsg = err.error.error;
-    }
-    console.error(errorMsg);
-    return errorMsg;
 }
