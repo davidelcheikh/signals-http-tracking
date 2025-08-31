@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "signals-http-tracking": {
+      "projectType": "library",
+      "root": "projects/signals-http-tracking",
+      "sourceRoot": "projects/signals-http-tracking/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/signals-http-tracking/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/signals-http-tracking/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular/build:karma",
+          "options": {
+            "tsConfig": "projects/signals-http-tracking/tsconfig.spec.json"
+          }
+        }
+      }
+    }
+  }
+}
