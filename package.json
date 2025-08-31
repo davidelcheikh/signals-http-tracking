@@ -2,11 +2,18 @@
   "name": "@delcheikh/signals-http-tracking",
   "version": "0.0.0",
   "scripts": {
-    "build": "ng build signals-http-tracking",
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build signals-http-tracking --configuration production",
     "build:watch": "ng build signals-http-tracking --watch",
     "test": "ng test signals-http-tracking",
-    "pack": "cd dist/signals-http-tracking && npm pack",
-    "publish": "npm publish dist/signals-http-tracking --access public"
+    "test:headless": "ng test signals-http-tracking --watch=false --browsers=ChromeHeadless",
+    "lint": "ng lint signals-http-tracking",
+    "pack": "npm run build && cd dist/signals-http-tracking && npm pack",
+    "publish:local": "npm run pack",
+    "release:patch": "npm version patch && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags",
+    "release:major": "npm version major && git push --follow-tags"
   },
   "prettier": {
     "printWidth": 100,
