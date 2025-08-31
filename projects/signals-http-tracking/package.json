@@ -1,6 +1,6 @@
 {
   "name": "signals-http-tracking",
-  "version": "1.0.0",
+  "version": "#{GITHUB_TAG_VERSION}#",
   "description": "Angular HTTP request tracking using signals - standalone and module-free",
   "keywords": [
     "angular",

@@ -1,11 +1,10 @@
-# .github/workflows/release.yml
 name: Release to NPM
 
 on:
   push:
     tags:
-      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
-  workflow_dispatch:  # Allows manual triggering
+      - 'v*.*.*'
+  workflow_dispatch:
 
 jobs:
   release:
@@ -32,10 +31,14 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Update package version
+      - name: Replace version placeholder
         run: |
           cd dist/signals-http-tracking
-          npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+          # Replace placeholder with actual version from git tag
+          sed -i 's/"version": "#{GITHUB_TAG_VERSION}#"/"version": "${{ steps.version.outputs.VERSION }}"/g' package.json
+          echo "Version placeholder replaced with: ${{ steps.version.outputs.VERSION }}"
+          # Verify the change
+          grep '"version":' package.json
 
       - name: Publish to NPM
         run: |
